@@ -1,2 +1,2 @@
 # scansio_download
-Download 
+Download files listed on the Internet-Wide Scan Data Repository, https://scans.io/
