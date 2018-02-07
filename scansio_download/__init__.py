@@ -27,13 +27,13 @@ class Download:
 
     def write_json_catalog(self, local_catalog_json):
         # write catalog to disk with json.dumps
-        with open(local_catalog_file, "w") as catalog_file:
+        with open(self.local_catalog_file, "w") as catalog_file:
             catalog_json_dump = json.dump(local_catalog_json, catalog_file)
 
     def load_json_catalog(self):
         # returns loaded JSON of catalog, or False
-        if os.path.isfile(local_catalog_file):
-            with open(local_catalog_file, "r") as catalog_file:
+        if os.path.isfile(self.local_catalog_file):
+            with open(self.local_catalog_file, "r") as catalog_file:
                 local_catalog_json = json.load(catalog_file)
         else:
             local_catalog_json = {}
@@ -68,9 +68,6 @@ class Download:
         if not study_found:
             print("study not found")
             return False  # study not found
-        else:
-            print("couldn't download the catalog")
-            return False  # couldn't download the catalog
         # Compare against local catalog
         if self.local_catalog == "json":
             previous_catalog = self.load_json_catalog()
