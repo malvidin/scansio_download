@@ -72,9 +72,9 @@ class Download:
             print("couldn't download the catalog")
             return False  # couldn't download the catalog
         # Compare against local catalog
-        if local_catalog == "json":
+        if self.local_catalog == "json":
             previous_catalog = self.load_json_catalog()
-        # elif local_catalog == "elasticsearch":
+        # elif self.local_catalog == "elasticsearch":
             # previous_catalog = load_elasticsearch_catalog()
         else:
             print("invalid catalog type specified")
