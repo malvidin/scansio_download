@@ -4,6 +4,7 @@ import json
 import hashlib
 # from elasticsearch import Elasticsearch
 
+
 class Download:
     """ Download files from scans.io """
 
@@ -52,11 +53,13 @@ class Download:
         # downloads the most recent study, using the uniqid from https://scans.io/json
         # If specified, validates the SHA1 hash against the fingerprint from Scans.io
         # If the file was already downloaded and validated, returns True
-        # Also returns True if the file is downloaded
+        # If the file is downloaded, returns the downloaded file's name
         current_catalog = self.download_catalog()
+        study_found = False
         if current_catalog:
             # Get URL and hash from current catalog
             for study in current_catalog["studies"]:
+                # TODO Sort by creation date, the sort order is not consistent
                 if study["uniqid"] == study_id:
                     study_file_info = study["files"][-1]
                     study_link = study_file_info["name"]
@@ -64,6 +67,8 @@ class Download:
                     study_filename = study_link.split("/")[-1]
                     # Copy the shell in case the study doesn't exist in the local catalog
                     newest_study = study
+                    newest_study["files"] = [ study_file_info ]
+                    # print newest_study
                     study_found = True
         if not study_found:
             print("study not found")
@@ -76,13 +81,13 @@ class Download:
         else:
             print("invalid catalog type specified")
             return False  # invalid catalog type specified
-        for study in previous_catalog["studies"]: 
+        for study in previous_catalog["studies"]:
             if study["uniqid"] == study_id:
                 for file in study["files"]:
                     if file["fingerprint"] == study_hash:
                         print("file already exists")
                         return True  # file already exists
-        #download file
+        # download file
         self.download_large_file(study_link, study_filename)
         if self.validate:
             observed_hash = self.generate_sha1_hash(study_filename)
@@ -95,29 +100,33 @@ class Download:
                 return False
         # add any validation info to the local catalog
         current_catalog = previous_catalog
-        for study in current_catalog:
+        appended = False
+        for study in current_catalog["studies"]:
             if study["uniqid"] == study_id:
                 study["files"].append(study_file_info)
                 appended = True
         if not appended:
             # add studies shell and file info to JSON.
-            current_catalog["studies"] = newest_study
+            current_catalog["studies"] =  [ newest_study ]
             study["files"].append(study_file_info)
         self.write_json_catalog(current_catalog)  # previous
+        return study_filename
 
-    def download_large_file(self, download_link, target_file):
+    @staticmethod
+    def download_large_file(download_link, target_file):
         file_download = requests.get(download_link, stream=True)
         with open(target_file, 'wb') as file_target:
             for chunk in file_download.iter_content(chunk_size=1024):
                 if chunk:
                     file_target.write(chunk)
 
-    def generate_sha1_hash(self, target_file):
+    @staticmethod
+    def generate_sha1_hash(target_file):
         # calculate the sha1 hash of a file
-        with open(target_file, 'rb') as file:
+        with open(target_file, 'rb') as file_target:
             h = hashlib.sha1()
             while True:
-                data = fh.read(8192)
+                data = file_target.read(8192)
                 if not data:
                     break
                 h.update(data)
