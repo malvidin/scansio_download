@@ -61,7 +61,8 @@ class Download:
             for study in current_catalog["studies"]:
                 # TODO Sort by creation date, the sort order is not consistent
                 if study["uniqid"] == study_id:
-                    study_file_info = study["files"][-1]
+                    study["files"].sort(key=date_to_int, reverse=True)
+                    study_file_info = study["files"][0]
                     study_link = study_file_info["name"]
                     study_hash = study_file_info["fingerprint"]
                     study_filename = study_link.split("/")[-1]
@@ -132,4 +133,11 @@ class Download:
                 h.update(data)
         sha1 = h.hexdigest()
         return sha1
-
+    
+    @staticmethod
+    def date_to_int(json):
+        try:
+            print json["updated-at"].replace("-","")
+            return int(json["updated-at"].replace("-",""))
+        except KeyError:
+            return 0
