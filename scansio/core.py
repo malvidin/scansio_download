@@ -111,7 +111,7 @@ class Download:
             catalog.write(current_catalog)
         # Place holder for adding information to Elastic Search
         elif self.local_catalog == "elasticsearch":
-            catalog.write(current_catalog)
+            catalog.write(study_id, study_filename, study_hash)
         return study_filename
 
     @staticmethod
