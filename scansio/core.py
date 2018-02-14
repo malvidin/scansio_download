@@ -56,7 +56,7 @@ class Download:
         # If the file is downloaded, returns the downloaded file's name
         current_catalog = self.download_catalog()
         study_found = False
-        if current_catalog:
+        if current_catalog is not False:
             # Get URL and hash from current catalog
             for study in current_catalog["studies"]:
                 if study["uniqid"] == study_id:
@@ -77,8 +77,8 @@ class Download:
             if self.local_catalog == "json":
                 catalog = JSONCatalog()
             elif self.local_catalog == "elasticsearch":
-                import esindex  # DON'T WANT THIS CONDITIONAL IMPORT
-                catalog = esindex.ESCatalog()
+                import esindex  # DON'T WANT THIS CONDITIONAL IMPORT, AND IT NEEDS PARAMETERS (host, port, timeout)
+                catalog = esindex.ESCatalog("127.0.0.1", "1234", 30)
             else:
                 print("invalid catalog type specified")
                 return False  # invalid catalog type specified
