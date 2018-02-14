@@ -70,49 +70,49 @@ class Download:
                     newest_study["files"] = [study_file_info]
                     # print(newest_study)
                     study_found = True
-        if not study_found:
-            # print("study not found")
-            return False  # study not found
-        # Set the catalog type
-        if self.local_catalog == "json":
-            catalog = JSONCatalog()
-        elif self.local_catalog == "elasticsearch":
-            import esindex  # DON'T WANT THIS CONDITIONAL IMPORT
-            catalog = esindex.ESCatalog()
-        else:
-            print("invalid catalog type specified")
-            return False  # invalid catalog type specified
-        # Compare against catalog, 
-        if catalog.contains(study_hash):
-            # print("Found hash (%s) in catalog") % study_hash
-            return True
-        # download file
-        download_large_file(study_link, study_filename)
-        observed_hash = generate_sha1_hash(study_filename)
-        if observed_hash == study_hash:
-            # Hash verified; add verification to the local catalog
-            study_file_info["verified"] = True
-        else:
-            print("hash verification failed, expected %s, observed %s") % study_hash, observed_hash
-            return False
-        # add any validation info to the local catalog
-        previous_catalog = catalog.load()
-        current_catalog = previous_catalog
-        appended = False
-        if self.local_catalog == "json":
-            for study in current_catalog["studies"]:
-                if study["uniqid"] == study_id:
+            if not study_found:
+                # print("study not found")
+                return False  # study not found
+            # Set the catalog type
+            if self.local_catalog == "json":
+                catalog = JSONCatalog()
+            elif self.local_catalog == "elasticsearch":
+                import esindex  # DON'T WANT THIS CONDITIONAL IMPORT
+                catalog = esindex.ESCatalog()
+            else:
+                print("invalid catalog type specified")
+                return False  # invalid catalog type specified
+            # Compare against catalog,
+            if catalog.contains(study_hash):
+                # print("Found hash (%s) in catalog") % study_hash
+                return True
+            # download file
+            download_large_file(study_link, study_filename)
+            observed_hash = generate_sha1_hash(study_filename)
+            if observed_hash == study_hash:
+                # Hash verified; add verification to the local catalog
+                study_file_info["verified"] = True
+            else:
+                print("hash verification failed, expected %s, observed %s") % (study_hash, observed_hash)
+                return False
+            # add any validation info to the local catalog
+            previous_catalog = catalog.load()
+            current_catalog = previous_catalog
+            if self.local_catalog == "json":
+                appended = False
+                for study in current_catalog["studies"]:
+                    if study["uniqid"] == study_id:
+                        study["files"].append(study_file_info)
+                        appended = True
+                if not appended:
+                    # add studies shell and file info to JSON.
+                    current_catalog["studies"] = [newest_study]
                     study["files"].append(study_file_info)
-                    appended = True
-            if not appended:
-                # add studies shell and file info to JSON.
-                current_catalog["studies"] = [newest_study]
-                study["files"].append(study_file_info)
-            catalog.write(current_catalog)
-        # Place holder for adding information to Elastic Search
-        elif self.local_catalog == "elasticsearch":
-            catalog.write(study_id, study_filename, study_hash)
-        return study_filename
+                catalog.write(current_catalog)
+            # Place holder for adding information to Elastic Search
+            elif self.local_catalog == "elasticsearch":
+                catalog.write(study_id, study_filename, study_hash)
+            return study_filename
 
     @staticmethod
     def date_to_int(json_input):
