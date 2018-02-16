@@ -34,11 +34,10 @@ def generate_sha1_hash(target_file):
 class Download:
     """ Download files from scans.io """
 
-    def __init__(self, catalog_url="https://scans.io/json", local_catalog="json"):
+    def __init__(self, catalog_url="https://scans.io/json"):
         # The local catalog is currently a JSON file with similar structure to the Scans.io JSON catalog
         # Should be able to validate against Elastic Search in the future"
         self.catalog_url = catalog_url
-        self.local_catalog = local_catalog
 
     def download_catalog(self):
         # Download catalog from remote URL
@@ -50,69 +49,66 @@ class Download:
         else:
             return False
 
-    def download_latest_study(self, study_id):
-        # downloads the most recent study, using the uniqid from https://scans.io/json
-        # If the file was already downloaded, returns True
-        # If the file is downloaded, returns the downloaded file's name
-        current_catalog = self.download_catalog()
+    def download_latest_study(self, study_id, catalog_class):
+        # Keep same name as before
+        result = self.download_study_files(study_id, catalog_class, -1)
+        if type(result) == list:
+            return result[0]
+        else:
+            return result
+
+    def download_study_files(self, study_id, catalog_class, count=0):
+        # downloads all files from a scans.io study, using the uniqid from https://scans.io/json
+        # Returns list of downloaded file names, or False if non-download errors occur
+        # Use count to limit the returned values.
+        # Positive integers retrieve the oldest X studies, Negative integers retrieve newest X studies
+        assert type(count) == int
         study_found = False
+        downloaded_file_list = []
+        current_catalog = self.download_catalog()
         if current_catalog is not False:
-            # Get URL and hash from current catalog
+            # Get URLs and h*ashes from current catalog
             for study in current_catalog["studies"]:
                 if study["uniqid"] == study_id:
-                    study["files"].sort(key=self.date_to_int, reverse=True)
-                    study_file_info = study["files"][0]
-                    study_link = study_file_info["name"]
-                    study_hash = study_file_info["fingerprint"]
-                    study_filename = study_link.split("/")[-1]
-                    # Copy the shell in case the study doesn't exist in the local catalog
-                    newest_study = study
-                    newest_study["files"] = [study_file_info]
-                    # print(newest_study)
                     study_found = True
+                    # Sort the study, oldest to newest.
+                    study_file_list = study.pop("files")
+                    study_metadata = study
+                    study_file_list.sort(key=self.date_to_int, reverse=False)
+                    if len(study_file_list) < abs(count) or count == 0:
+                        pass
+                    elif count > 0:
+                        del study_file_list[count:]
+                    elif count < 0:
+                        del study_file_list[:count]
+                    for study_file_info in study_file_list:
+                        # Check if already downloaded
+                        if catalog_class.contains(study_file_info["fingerprint"]):
+                            # print("file already exists in local catalog")
+                            pass
+                        # If not, download and add to local catalog
+                        else:
+                            # Download file
+                            study_filename = study_file_info["name"].split("/")[-1]
+                            download_large_file(study_file_info["name"], study_filename)
+                            # verify downloaded file
+                            observed_hash = generate_sha1_hash(study_filename)
+                            if observed_hash == study_file_info["fingerprint"]:
+                                # Hash verified; add verification to the local catalog
+                                study_file_info["verified"] = True
+                                # print("%s verified as %s") % (study_filename, observed_hash)
+                                downloaded_file_list.append(study_filename)
+                            else:
+                                print("hash verification failed, expected %s, observed %s") % \
+                                            (study_file_info["fingerprint"], observed_hash)
+                                return downloaded_file_list  # Fail early if downloaded file doesn't verify
+                            # Write to catalog after validation
+                            catalog_class.write(study_metadata, study_file_info)
             if not study_found:
                 # print("study not found")
                 return False  # study not found
-            # Set the catalog type
-            if self.local_catalog == "json":
-                catalog = JSONCatalog()
-            elif self.local_catalog == "elasticsearch":
-                import esindex  # DON'T WANT THIS CONDITIONAL IMPORT, AND IT NEEDS PARAMETERS (host, port, timeout)
-                catalog = esindex.ESCatalog("127.0.0.1", "1234", 30)
             else:
-                print("invalid catalog type specified")
-                return False  # invalid catalog type specified
-            # Compare against catalog,
-            if catalog.contains(study_hash):
-                # print("Found hash (%s) in catalog") % study_hash
-                return True
-            # download file
-            download_large_file(study_link, study_filename)
-            observed_hash = generate_sha1_hash(study_filename)
-            if observed_hash == study_hash:
-                # Hash verified; add verification to the local catalog
-                study_file_info["verified"] = True
-            else:
-                print("hash verification failed, expected %s, observed %s") % (study_hash, observed_hash)
-                return False
-            # add any validation info to the local catalog
-            previous_catalog = catalog.load()
-            current_catalog = previous_catalog
-            if self.local_catalog == "json":
-                appended = False
-                for study in current_catalog["studies"]:
-                    if study["uniqid"] == study_id:
-                        study["files"].append(study_file_info)
-                        appended = True
-                if not appended:
-                    # add studies shell and file info to JSON.
-                    current_catalog["studies"] = [newest_study]
-                    study["files"].append(study_file_info)
-                catalog.write(current_catalog)
-            # Place holder for adding information to Elastic Search
-            elif self.local_catalog == "elasticsearch":
-                catalog.write(study_id, study_filename, study_hash)
-            return study_filename
+                return downloaded_file_list
 
     @staticmethod
     def date_to_int(json_input):
@@ -139,10 +135,23 @@ class JSONCatalog:
             local_catalog_json = {"studies": []}
         return local_catalog_json
 
-    def write(self, local_catalog):
-        # write catalog to disk with json.dump
-        with open(self.local_catalog_file, "w") as catalog_file:
-            json.dump(local_catalog, catalog_file)
+    def write(self, study, study_file_info):
+        # study is the study metadata, minus the file objects
+        # study_file_info is one member of the file information list
+        study_id = study['uniqid']
+        local_catalog = self.load()
+        study_found = False
+        for study in local_catalog['studies']:
+            if study['uniqid'] == study_id:
+                study_found = True
+                try:
+                    study['files'].append(study_file_info)
+                except KeyError:
+                    study['files'] = [study_file_info]
+        if not study_found:
+            study['files'] = [study_file_info]
+            local_catalog['studies'].append(study)
+        json.dump(local_catalog, open(self.local_catalog_file, 'w'))
 
     def contains(self, hash_string):
         # Returns True if 'name' or 'fingerprint' of a study is in the local catalog

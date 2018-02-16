@@ -1,4 +1,4 @@
-"""
+"""*
 Interacts with an Elastic Search index
 """
 
@@ -16,11 +16,12 @@ class ESCatalog:
         self.timeout = timeout
         self.esconnection = Elasticsearch([{'host': host, 'port': port}], timeout=timeout)
 
-    def load(self):
-        # Dummy function to echo JSON functionality
-        pass
-
-    def write(self, study_id, study_filename, study_hash, study_index='scansio-imported'):
+    def write(self, study, study_file_info, study_index='scansio-imported'):
+        # study is the study metadata, minus the file objects
+        # study_file_info is one member of the file information list
+        study_id = study['uniqid']
+        study_filename = study_file_info['name'].split("/")[-1]
+        study_hash = study_file_info['fingerprint']
         # Clean up study ID
         study_id = study_id.replace(".", "-")
         # Add file to Elastic Search, checking compression and file type
