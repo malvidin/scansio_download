@@ -4,6 +4,7 @@ Interacts with an Elastic Search index
 
 from elasticsearch import Elasticsearch
 from datetime import datetime
+import json
 
 
 class ESCatalog:
@@ -34,7 +35,9 @@ class ESCatalog:
 
     def contains(self, study_hash, study_index='scansio-imported'):
         # Determine if Elastic Search already contains the file
-        search_result = self.esconnection.search(index=study_index, body={"size": 3000, "query": {"sha1": {study_hash}}})
+        query = {'query': {'term': {'sha1': study_hash}}}
+        query_dsl = json.dumps(query)
+        search_result = self.esconnection.search(index=study_index, body=query_dsl)
         if study_hash in search_result:
             return True
         else:
