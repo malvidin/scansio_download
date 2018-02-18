@@ -123,8 +123,9 @@ class Download:
 class JSONCatalog:
     """ Interact with local JSON catalog file """
 
-    def __init__(self, local_catalog_file="local_catalog.json"):
+    def __init__(self, local_catalog_file="local_catalog.json", parser=lambda x: True):
         self.local_catalog_file = local_catalog_file
+        self.parser = parser
 
     def load(self):
         # returns loaded JSON of catalog, or False
@@ -139,19 +140,23 @@ class JSONCatalog:
         # study is the study metadata, minus the file objects
         # study_file_info is one member of the file information list
         study_id = study['uniqid']
+        study_filename = study_file_info['name'].split("/")[-1]
         local_catalog = self.load()
         study_found = False
-        for study in local_catalog['studies']:
-            if study['uniqid'] == study_id:
-                study_found = True
-                try:
-                    study['files'].append(study_file_info)
-                except KeyError:
-                    study['files'] = [study_file_info]
-        if not study_found:
-            study['files'] = [study_file_info]
-            local_catalog['studies'].append(study)
-        json.dump(local_catalog, open(self.local_catalog_file, 'w'))
+        if self.parser(study_filename) == True:
+            for study in local_catalog['studies']:
+                if study['uniqid'] == study_id:
+                    study_found = True
+                    try:
+                        study['files'].append(study_file_info)
+                    except KeyError:
+                        study['files'] = [study_file_info]
+            if not study_found:
+                study['files'] = [study_file_info]
+                local_catalog['studies'].append(study)
+            json.dump(local_catalog, open(self.local_catalog_file, 'w'))
+        else:
+            print("parsing failed")
 
     def contains(self, hash_string):
         # Returns True if 'name' or 'fingerprint' of a study is in the local catalog
