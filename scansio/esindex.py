@@ -31,6 +31,8 @@ class ESCatalog:
             self.esconnection.index(index=study_index, doc_type='imported-file', id=study_filename,
                                     body={'study': study_id, 'file': study_filename,
                                           'imported_date': datetime.now(), 'sha1': study_hash})
+        else:
+            print("parsing failed")
 
     def contains(self, study_hash, study_index='scansio-imported'):
         # Determine if Elastic Search already contains the file

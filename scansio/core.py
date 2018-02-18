@@ -49,15 +49,15 @@ class Download:
         else:
             return False
 
-    def download_latest_study(self, study_id, catalog_class):
+    def download_latest_study(self, study_id, catalog_class, file_filter=""):
         # Keep same name as before
-        result = self.download_study_files(study_id, catalog_class, -1)
+        result = self.download_study_files(study_id, catalog_class, -1, file_filter)
         if type(result) == list:
             return result[0]
         else:
             return result
 
-    def download_study_files(self, study_id, catalog_class, count=0):
+    def download_study_files(self, study_id, catalog_class, count=0, file_filter=""):
         # downloads all files from a scans.io study, using the uniqid from https://scans.io/json
         # Returns list of downloaded file names, or False if non-download errors occur
         # Use count to limit the returned values.
@@ -73,6 +73,8 @@ class Download:
                     study_found = True
                     # Sort the study, oldest to newest.
                     study_file_list = study.pop("files")
+                    # apply filename filter before counting the matching results
+                    study_file_list[:] = [f for f in study_file_list if file_filter in f.get("name").split("/")[-1]]
                     study_metadata = study
                     study_file_list.sort(key=self.date_to_int, reverse=False)
                     if len(study_file_list) < abs(count) or count == 0:
@@ -82,6 +84,7 @@ class Download:
                     elif count < 0:
                         del study_file_list[:count]
                     for study_file_info in study_file_list:
+                        study_filename = study_file_info["name"].split("/")[-1]
                         # Check if already downloaded
                         if catalog_class.contains(study_file_info["fingerprint"]):
                             # print("file already exists in local catalog")
@@ -89,7 +92,6 @@ class Download:
                         # If not, download and add to local catalog
                         else:
                             # Download file
-                            study_filename = study_file_info["name"].split("/")[-1]
                             download_large_file(study_file_info["name"], study_filename)
                             # verify downloaded file
                             observed_hash = generate_sha1_hash(study_filename)
