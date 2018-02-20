@@ -25,7 +25,7 @@ newest_study = dl.download_latest_study('scott-top-one-million', catalog, 'umbre
 
 Download latest 5 studies and add to Elastic Search catalog
 1. Create instance of Elastic Search catalog class
-    1. Include a parsing function to index the file contents in Elastic Search
+    1. Include a parsing function to index the file contents in Elastic Search (study_parser in example below)
         1. Takes the filename as the only parameter
         2. Must return True to add downloaded files to the catalog index
 2. Create instance of Download class
@@ -37,6 +37,14 @@ Download latest 5 studies and add to Elastic Search catalog
 ```
 import scansio.esindex
 from elasticsearch import ElasticSearch
+import gzip
+
+def study_parser(filename):
+    with gzip.open(filename, 'rb') as f:
+        file_content = f.read()
+        return True
+    return False
+    
 esconnection = Elasticsearch([{'host': '127.0.0.1', 'port': 443}], timeout=20)
 catalog = scansio.esindex.ESCatalog(esconnection, study_parser)
 dl = scansio.Download()
