@@ -10,13 +10,14 @@ from datetime import datetime
 class ESCatalog:
     """ Interact with Elastic Search"""
 
-    def __init__(self, host, port, timeout=30, parser=lambda x: True):
+    def __init__(self, esconnection, parser=lambda x: True):
         # API keys, index, etc.
         self.host = host
         self.port = port
         self.timeout = timeout
-        self.esconnection = Elasticsearch([{'host': host, 'port': port}], timeout=timeout)
+        self.esconnection = esconnection
         self.parser = parser
+        assert isinstance(esconnection, Elasticsearch)
 
     def write(self, study, study_file_info, study_index='scansio-imported'):
         # study is the study metadata, minus the file objects
