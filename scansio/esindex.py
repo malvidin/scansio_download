@@ -12,9 +12,6 @@ class ESCatalog:
 
     def __init__(self, esconnection, parser=lambda x: True):
         # API keys, index, etc.
-        self.host = host
-        self.port = port
-        self.timeout = timeout
         self.esconnection = esconnection
         self.parser = parser
         assert isinstance(esconnection, Elasticsearch)
