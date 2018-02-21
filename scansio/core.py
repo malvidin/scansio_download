@@ -8,9 +8,11 @@ import os
 import requests
 import json
 import hashlib
+import logging
 
 
 def download_large_file(download_link, target_file):
+    logging.info('downloading %s to %s', download_link, target_file)
     file_download = requests.get(download_link, stream=True)
     with open(target_file, 'wb') as file_target:
         for chunk in file_download.iter_content(chunk_size=1024):
@@ -19,6 +21,7 @@ def download_large_file(download_link, target_file):
 
 
 def generate_sha1_hash(target_file):
+    logging.info('generating hash for %s', target_file)
     # calculate the sha1 hash of a file
     with open(target_file, 'rb') as file_target:
         h = hashlib.sha1()
@@ -28,6 +31,7 @@ def generate_sha1_hash(target_file):
                 break
             h.update(data)
     sha1 = h.hexdigest()
+    logging.info('sha1 hash: %s', sha1)
     return sha1
 
 
@@ -45,8 +49,10 @@ class Download:
         catalog_response = requests.get(self.catalog_url)
         if catalog_response.status_code == 200:
             catalog_json = json.loads(catalog_response.text)
+            logging.info('file downloaded successfully from %s', self.catalog_url)
             return catalog_json
         else:
+            logging.error('download failure of %s with status %d', self.catalog_url, catalog_response.status_code)
             return False
 
     def download_latest_study(self, study_id, catalog_class, file_filter=""):
@@ -70,6 +76,7 @@ class Download:
             # Get URLs and h*ashes from current catalog
             for study in current_catalog["studies"]:
                 if study["uniqid"] == study_id:
+                    logging.info('Found study ID')
                     study_found = True
                     # Sort the study, oldest to newest.
                     study_file_list = study.pop("files")
@@ -77,7 +84,10 @@ class Download:
                     study_file_list[:] = [f for f in study_file_list if url_filter in f.get("name")]
                     study_metadata = study
                     study_file_list.sort(key=self.date_to_int, reverse=False)
-                    if len(study_file_list) < abs(count) or count == 0:
+                    logging.info('found %d files after applying filter', len(study_file_list))
+                    if len(study_file_list) == 0:
+                        return False
+                    elif len(study_file_list) < abs(count) or count == 0:
                         pass
                     elif count > 0:
                         del study_file_list[count:]
@@ -87,7 +97,6 @@ class Download:
                         study_filename = study_file_info["name"].split("/")[-1]
                         # Check if already downloaded
                         if catalog_class.contains(study_file_info["fingerprint"]):
-                            # print("file already exists in local catalog")
                             pass
                         # If not, download and add to local catalog
                         else:
@@ -98,18 +107,22 @@ class Download:
                             if observed_hash == study_file_info["fingerprint"]:
                                 # Hash verified; add verification to the local catalog
                                 study_file_info["verified"] = True
-                                # print("%s verified as %s") % (study_filename, observed_hash)
+                                logging.info("%s hash verified as %s", study_filename, observed_hash)
                                 downloaded_file_list.append(study_filename)
                             else:
-                                print("hash verification failed, expected %s, observed %s") % \
-                                            (study_file_info["fingerprint"], observed_hash)
+                                logging.info("hash verification failed, expected %s, observed %s",
+                                            study_file_info["fingerprint"], observed_hash)
                                 return downloaded_file_list  # Fail early if downloaded file doesn't verify
                             # Write to catalog after validation
-                            catalog_class.write(study_metadata, study_file_info)
+                            logging.info('sending to parser and catalog')
+                            write_success = catalog_class.write(study_metadata, study_file_info)
+                            if write_success is False:
+                                return False
             if not study_found:
-                # print("study not found")
-                return False  # study not found
+                logging.error("study not found")
+                return False
             else:
+                logging.info('returning list of downloaded files')
                 return downloaded_file_list
 
     @staticmethod
@@ -135,6 +148,7 @@ class JSONCatalog:
             with open(self.local_catalog_file, "r") as catalog_file:
                 local_catalog_json = json.load(catalog_file)
         else:
+            logging.info('file not found, creating local catalog')
             local_catalog_json = {"studies": []}
         return local_catalog_json
 
@@ -145,7 +159,9 @@ class JSONCatalog:
         study_filename = study_file_info['name'].split("/")[-1]
         local_catalog = self.load()
         study_found = False
+        logging.info('starting write to catalog')
         if self.parser(study_filename) == True:
+            logging.info('parser success (if defined)')
             for study in local_catalog['studies']:
                 if study['uniqid'] == study_id:
                     study_found = True
@@ -156,11 +172,14 @@ class JSONCatalog:
             if not study_found:
                 study['files'] = [study_file_info]
                 local_catalog['studies'].append(study)
+            logging.info('writing catalog')
             json.dump(local_catalog, open(self.local_catalog_file, 'w'))
+            return True
         else:
-            print("parsing failed")
+            logging.error("parser failed, not writing to catalog")
+            return False
 
-    def contains(self, hash_string):
+    def contains(self, study_hash):
         # Returns True if 'name' or 'fingerprint' of a study is in the local catalog
         # The 'name' is the source URL of the study, the fingerprint is the SHA1 hash of the file.
         # Otherwise, returns False
@@ -168,6 +187,8 @@ class JSONCatalog:
         # loop through all studies and files, looking for the file hash or source URL
         for study in current_catalog["studies"]:
             for study_files in study["files"]:
-                if hash_string == study_files['fingerprint']:
+                if study_hash == study_files['fingerprint']:
+                    logging.info("%s already exists in local catalog", study_hash)
                     return True
+        logging.info("%s not found in local catalog", study_hash)
         return False
